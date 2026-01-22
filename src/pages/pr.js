@@ -47,6 +47,10 @@ export const PRPage = {
               <input type="checkbox" id="pr-include-reviews" />
               <span>Include review summaries</span>
             </label>
+            <label class="toggle">
+              <input type="checkbox" id="pr-historical-mode" />
+              <span>Historical mode (commits + comments in order)</span>
+            </label>
           </div>
 
           <div class="actions">

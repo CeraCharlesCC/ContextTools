@@ -89,6 +89,15 @@ export async function getPullFiles({ owner, repo, number, token }) {
   return fetchAllPages(url, token)
 }
 
+export async function getPullCommits({ owner, repo, number, token }) {
+  const url = `${API_ROOT}/repos/${owner}/${repo}/pulls/${number}/commits?per_page=100`
+  return fetchAllPages(url, token)
+}
+
+export async function getCommit({ owner, repo, sha, token }) {
+  return fetchJson(`${API_ROOT}/repos/${owner}/${repo}/commits/${sha}`, token)
+}
+
 export async function getPullReviews({ owner, repo, number, token }) {
   const url = `${API_ROOT}/repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`
   return fetchAllPages(url, token)

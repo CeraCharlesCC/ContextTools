@@ -1,7 +1,9 @@
 import { copyToClipboard } from '../lib/clipboard.js'
 import {
   getIssueComments,
+  getCommit,
   getPullFiles,
+  getPullCommits,
   getPullRequest,
   getPullReviewComments,
   getPullReviews,
@@ -22,6 +24,7 @@ export function initPrToMarkdown() {
     includeIssueComments: document.getElementById('pr-include-issue-comments'),
     includeReviewComments: document.getElementById('pr-include-review-comments'),
     includeReviews: document.getElementById('pr-include-reviews'),
+    historicalMode: document.getElementById('pr-historical-mode'),
     convert: document.getElementById('pr-convert'),
     clear: document.getElementById('pr-clear'),
     status: document.getElementById('pr-status'),
@@ -118,23 +121,52 @@ async function handleConvert(els) {
   setLoading(els, true)
 
   try {
+    const historicalMode = Boolean(els.historicalMode?.checked)
     const pr = await getPullRequest({ ...parsed, token })
 
-    const [files, issueComments, reviewComments, reviews] = await Promise.all([
-      els.includeFiles.checked ? getPullFiles({ ...parsed, token }) : Promise.resolve([]),
+    const [files, issueComments, reviewComments, reviews, commits] = await Promise.all([
+      els.includeFiles.checked && !historicalMode ? getPullFiles({ ...parsed, token }) : Promise.resolve([]),
       els.includeIssueComments.checked ? getIssueComments({ ...parsed, token }) : Promise.resolve([]),
       els.includeReviewComments.checked ? getPullReviewComments({ ...parsed, token }) : Promise.resolve([]),
       els.includeReviews.checked ? getPullReviews({ ...parsed, token }) : Promise.resolve([]),
+      historicalMode ? getPullCommits({ ...parsed, token }) : Promise.resolve([]),
     ])
 
-    const markdown = prToMarkdown({ pr, files, issueComments, reviewComments, reviews })
+    let commitDetails = commits
+    if (historicalMode && els.includeFiles.checked && commits.length) {
+      commitDetails = await Promise.all(
+        commits.map((commit) => getCommit({ owner: parsed.owner, repo: parsed.repo, sha: commit.sha, token }))
+      )
+    }
+
+    const markdown = prToMarkdown({
+      pr,
+      files,
+      issueComments,
+      reviewComments,
+      reviews,
+      commits: commitDetails,
+      historicalMode,
+      includeFiles: els.includeFiles.checked,
+    })
     setOutput(els, markdown)
+
+    const statusParts = []
+    if (historicalMode) {
+      statusParts.push(`${commitDetails.length} commit${commitDetails.length === 1 ? '' : 's'}`)
+      if (els.includeFiles.checked) {
+        const changedFiles = typeof pr.changed_files === 'number' ? pr.changed_files : commitDetails.length
+        statusParts.push(`${changedFiles} changed file${changedFiles === 1 ? '' : 's'}`)
+      }
+    } else {
+      statusParts.push(`${files.length} file${files.length === 1 ? '' : 's'}`)
+    }
+    statusParts.push(`${issueComments.length} issue comment${issueComments.length === 1 ? '' : 's'}`)
+    statusParts.push(`${reviewComments.length} review comment${reviewComments.length === 1 ? '' : 's'}`)
 
     setStatus(
       els,
-      `Ready — ${files.length} file${files.length === 1 ? '' : 's'}, ${issueComments.length} issue comment${
-        issueComments.length === 1 ? '' : 's'
-      }, ${reviewComments.length} review comment${reviewComments.length === 1 ? '' : 's'}.`,
+      `Ready — ${statusParts.join(', ')}.`,
       'success'
     )
   } catch (err) {
